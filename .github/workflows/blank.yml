@@ -3,7 +3,7 @@ name: Remote Desktop Tunnel
 on:
   push:
     branches:
-      - main  # Modify this to match your main branch name
+      - main  # تغيير هذا إلى اسم الفرع الرئيسي الخاص بك إذا لزم الأمر
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
           Expand-Archive ngrok.zip -DestinationPath ngrok
-          Remove-Item ngrok.zip  # Clean up the zip file
+          Remove-Item ngrok.zip  # للقضاء على ملف الضغط
 
       - name: Set up ngrok
         run: |
@@ -29,47 +29,34 @@ jobs:
 
       - name: Enable Remote Desktop
         run: |
-          # Enable Remote Desktop and configure settings
+          # تمكين الوصول عن بعد لسطح المكتب وتكوين الإعدادات
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
       - name: Create Tunnel
         run: |
-          # Start ngrok tunnel for RDP (port 3389)
+          # بدء نفق ngrok للاتصال بـ RDP (المنفذ 3389)
           Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389" -NoNewWindow
 
       - name: Wait for ngrok tunnel
         run: |
-          # Sleep for a while to allow ngrok to start the tunnel (adjust the sleep duration as needed)
+          # الانتظار لبعض الوقت للسماح لـ ngrok بإنشاء النفق (قم بضبط مدة الانتظار حسب الحاجة)
           Start-Sleep -Seconds 20
         continue-on-error: true
 
       - name: Get ngrok tunnel URL
         id: get_tunnel_url
         run: |
-          # Retrieve ngrok tunnel URL
+          # الحصول على عنوان URL للنفق من ngrok
           $ngrokOutput = .\ngrok\ngrok.exe http 4040
           $ngrokTunnelUrl = $ngrokOutput | Select-String -Pattern 'Tunnel Status\:\s+online' -Context 1 | ForEach-Object { $_.Context.PreContext[0] }
-          echo "ngrok Tunnel URL: $ngrokTunnelUrl"
+          echo "عنوان URL للنفق من ngrok: $ngrokTunnelUrl"
         continue-on-error: true
 
       - name: Output tunnel URL
         run: |
-          # Output the ngrok tunnel URL as a GitHub Actions step output
+          # إخراج عنوان URL للنفق كناتج لعملية الخطوة
           echo "::set-output name=tunnel_url::$ngrokTunnelUrl"
         continue-on-error: true
-
-  rdp-access:
-    needs: build
-    runs-on: windows-latest
-    steps:
-      - name: Get Tunnel URL from Previous Job
-        id: tunnel_url
-        run: echo "Tunnel URL is ${{ needs.build.outputs.tunnel_url }}"
-      - name: Connect to Remote Desktop
-        run: |
-          # Connect to the remote desktop using the ngrok tunnel URL
-          # Modify the username and password as needed
-          mstsc /v:$${{ steps.tunnel_url.outputs.tunnel_url }} /u:your_username /p:your_password
 
